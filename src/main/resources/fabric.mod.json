@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"id": "quickbreak",
+	"version": "${version}",
+	"name": "QuickBreak",
+	"description": "QuickBreak enables instant block breaking in Creative mode by holding LMB, with a customizable toggle key (V by default; rebindable in Controls). Client-side only.",
+	"authors": ["CardeJIbka"],
+	"contact": {
+		"sources": "https://github.com/CardeJIbka/QuickBreak"
+	},
+	"license": "MIT",
+	"icon": "assets/quickbreak/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["cardejibka.quickbreak.QuickBreakClient"]
+	},
+	"mixins": [],
+	"depends": {
+		"fabricloader": ">=0.14.21",
+		"fabric-api": "*",
+		"minecraft": ">=1.21 <1.21.9",
+		"java": ">=17"
+	},
+	"suggests": {}
+}
