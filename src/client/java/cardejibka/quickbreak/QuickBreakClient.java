@@ -7,6 +7,7 @@ import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.util.Hand;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
@@ -25,6 +26,9 @@ public class QuickBreakClient implements ClientModInitializer {
 
 	private KeyBinding toggleKeyBinding;
 
+	private static final KeyBinding.Category QUICKBREAK_CATEGORY =
+			new KeyBinding.Category(Identifier.of("quickbreak", "quickbreak"));
+
 	@Override
 	public void onInitializeClient() {
 		LOGGER.info("Initializing QuickBreak Mod (Client)");
@@ -33,7 +37,7 @@ public class QuickBreakClient implements ClientModInitializer {
 				"key.quickbreak.toggle",
 				InputUtil.Type.KEYSYM,
 				GLFW.GLFW_KEY_V,
-				"key.categories.quickbreak"
+				QUICKBREAK_CATEGORY
 		));
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
