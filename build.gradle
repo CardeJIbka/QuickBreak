@@ -70,7 +70,7 @@ jar {
 
 afterEvaluate {
 	remapJar {
-		archiveFileName = "${project.archives_base_name}-fabric-${project.minecraft_version}-${project.mod_version}.jar"
+		archiveFileName = "${project.archives_base_name}-fabric-1.18-${project.mod_version}.jar"
 	}
 }
 
