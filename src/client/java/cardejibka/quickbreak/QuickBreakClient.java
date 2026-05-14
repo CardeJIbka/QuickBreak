@@ -2,81 +2,110 @@ package cardejibka.quickbreak;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import com.mojang.blaze3d.platform.InputConstants;
 import org.lwjgl.glfw.GLFW;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class QuickBreakClient implements ClientModInitializer {
+
 	public static final String MOD_ID = "quickbreak";
-	private static final Logger LOGGER = LogManager.getLogger(MOD_ID);
+	private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-	private static final int BREAK_DELAY_TICKS = 0;
-	private int tickCounter = 0;
-	private boolean isEnabled = true;
+	private static KeyMapping toggleKeyBinding;
+	private static boolean isEnabled = true;
 
-	private KeyBinding toggleKeyBinding;
+	private BlockPos lastBreakingPos = null;
+	private Direction lastBreakingDir = null;
+	private boolean wasAttackingLastTick = false;
 
 	@Override
 	public void onInitializeClient() {
-		LOGGER.info("Initializing QuickBreak Mod (Client)");
-
-		toggleKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+		toggleKeyBinding = KeyMappingHelper.registerKeyMapping(new KeyMapping(
 				"key.quickbreak.toggle",
-				InputUtil.Type.KEYSYM,
+				InputConstants.Type.KEYSYM,
 				GLFW.GLFW_KEY_V,
-				"key.categories.quickbreak"
+				KeyMapping.Category.MISC
 		));
 
-		ClientTickEvents.END_CLIENT_TICK.register(client -> {
-			while (toggleKeyBinding.wasPressed()) {
-				isEnabled = !isEnabled;
-				LOGGER.info("QuickBreak {} (toggled by V key)", isEnabled ? "enabled" : "disabled");
+		ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
+
+		LOGGER.info("QuickBreak initialized | Toggle key: V");
+	}
+
+	private void onClientTick(Minecraft client) {
+		while (toggleKeyBinding.consumeClick()) {
+			isEnabled = !isEnabled;
+
+			LOGGER.info("QuickBreak {}", isEnabled ? "enabled" : "disabled");
+		}
+
+		if (!isEnabled || client.player == null || client.level == null || client.gameMode == null
+				|| !client.gameMode.getPlayerMode().isCreative()) {
+			stopBreakingIfNeeded(client);
+			return;
+		}
+
+		boolean isAttackingNow = client.options.keyAttack.isDown();
+		HitResult hitResult = client.hitResult;
+
+		boolean lookingAtBlock = hitResult != null && hitResult.getType() == HitResult.Type.BLOCK;
+
+		if (isAttackingNow && lookingAtBlock) {
+			BlockHitResult blockHitResult = (BlockHitResult) hitResult;
+			BlockPos pos = blockHitResult.getBlockPos();
+			Direction direction = blockHitResult.getDirection();
+
+			LocalPlayer player = client.player;
+
+			if (!pos.equals(lastBreakingPos)) {
+				if (lastBreakingPos != null) {
+					client.gameMode.stopDestroyBlock();
+				}
+				client.gameMode.startDestroyBlock(pos, direction);
+				lastBreakingPos = pos;
+				lastBreakingDir = direction;
 			}
 
-			if (!isEnabled || client.player == null || client.world == null || client.interactionManager == null) {
-				resetTickCounter();
-				return;
-			}
+			boolean broken = client.gameMode.continueDestroyBlock(pos, direction);
 
-			ClientPlayerEntity player = client.player;
+			if (broken) {
+				player.swing(InteractionHand.MAIN_HAND);
 
-			if (!player.getAbilities().creativeMode) {
-				resetTickCounter();
-				return;
-			}
+				client.gameMode.destroyBlock(pos);
 
-			if (client.options.attackKey.isPressed() && tickCounter <= 0) {
-				HitResult hitResult = client.crosshairTarget;
-				if (hitResult != null && hitResult.getType() == HitResult.Type.BLOCK) {
-					BlockHitResult blockHitResult = (BlockHitResult) hitResult;
-					BlockPos pos = blockHitResult.getBlockPos();
-					Direction direction = blockHitResult.getSide();
-					boolean result = client.interactionManager.attackBlock(pos, direction);
-					if (result) {
-						player.swingHand(Hand.MAIN_HAND);
-						tickCounter = BREAK_DELAY_TICKS;
+				lastBreakingPos = null;
+				lastBreakingDir = null;
 
-						LOGGER.debug("Broke block at {} from direction {} (cooldown started)", pos, direction);
-					}
+				if (client.hitResult != null && client.hitResult.getType() == HitResult.Type.BLOCK) {
+					BlockHitResult nextHit = (BlockHitResult) client.hitResult;
+					client.gameMode.startDestroyBlock(nextHit.getBlockPos(), nextHit.getDirection());
+					lastBreakingPos = nextHit.getBlockPos();
+					lastBreakingDir = nextHit.getDirection();
 				}
 			}
 
-			if (tickCounter > 0) {
-				tickCounter--;
-			}
-		});
+		} else {
+			stopBreakingIfNeeded(client);
+		}
+
+		wasAttackingLastTick = isAttackingNow;
 	}
 
-	private void resetTickCounter() {
-		tickCounter = 0;
+	private void stopBreakingIfNeeded(Minecraft client) {
+		if (lastBreakingPos != null && client.gameMode != null) {
+			client.gameMode.stopDestroyBlock();
+			lastBreakingPos = null;
+			lastBreakingDir = null;
+		}
 	}
 }
